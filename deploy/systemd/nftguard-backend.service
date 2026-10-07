@@ -1,0 +1,26 @@
+[Unit]
+Description=nftguard - backend de gestion del firewall
+After=network.target
+
+[Service]
+Type=simple
+User=nftguard
+Group=nftguard
+WorkingDirectory=/opt/nftguard/backend
+EnvironmentFile=-/etc/nftguard/backend.env
+ExecStart=/opt/nftguard/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8443 \
+    --ssl-keyfile /etc/nftguard/tls.key --ssl-certfile /etc/nftguard/tls.crt
+Restart=on-failure
+RestartSec=3
+
+# Hardening básico. CAP_NET_ADMIN es necesario para aplicar reglas nft/wg.
+# El grupo suplementario 'suricata' (usermod -aG en install.sh) da acceso a
+# /etc/suricata, /var/lib/suricata/rules y /var/log/suricata sin ser root.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/etc/nftguard /var/lib/nftguard /etc/suricata /var/lib/suricata/rules /var/log/suricata /etc/systemd/system/suricata.service.d /etc/wireguard
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target

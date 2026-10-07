@@ -1,0 +1,51 @@
+%YAML 1.1
+---
+# Generado por nftguard. NO editar a mano: se sobrescribe al guardar la config de
+# Suricata desde la UI.
+
+vars:
+  address-groups:
+    HOME_NET: "[{{ home_net }}]"
+    EXTERNAL_NET: "!$HOME_NET"
+
+default-log-dir: {{ log_dir }}
+
+stats:
+  enabled: yes
+  interval: 30
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert:
+            payload: no
+            packet: no
+            metadata: yes
+        - flow
+
+default-rule-path: {{ rules_dir }}
+rule-files:
+  - suricata.rules
+
+classification-file: /etc/suricata/classification.config
+reference-config-file: /etc/suricata/reference.config
+threshold-file: /etc/suricata/threshold.config
+
+# Modo IPS inline vía NFQUEUE. nftables desvía a esta cola solo el tráfico marcado
+# con inspect_l7 (ver nftables_engine.py); el resto nunca pasa por aquí.
+nfq:
+  mode: accept
+  fail-open: yes
+
+# Hardware modesto: 1 hilo de trabajo basta para empezar. Se puede subir desde la
+# UI si el equipo lo permite.
+threading:
+  cpu-affinity: []
+  detect-thread-ratio: 1.0
+
+run-as:
+  user: suricata
+  group: suricata

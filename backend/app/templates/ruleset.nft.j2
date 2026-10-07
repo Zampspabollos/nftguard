@@ -1,0 +1,65 @@
+#!/usr/sbin/nft -f
+# Generado por nftguard. NO editar a mano: se sobrescribe en cada "apply".
+flush ruleset
+
+table inet nftguard {
+    chain input {
+        type filter hook input priority 0; policy drop;
+
+        iif "lo" accept
+        ct state established,related accept
+        ct state invalid drop
+
+        icmp type { echo-request, destination-unreachable, time-exceeded, parameter-problem } accept
+        icmpv6 type { echo-request, nd-neighbor-solicit, nd-neighbor-advert, nd-router-advert } accept
+
+        tcp dport 22 ct state new limit rate 10/minute accept comment "ssh rate-limited"
+        tcp dport {{ web_ui_port }} iifname "{{ lan_iface }}" ct state new accept comment "web ui solo desde lan"
+{% if vpn_enabled %}
+        udp dport {{ wg_listen_port }} iifname "{{ wan_iface }}" ct state new accept comment "wireguard"
+{% endif %}
+
+{% for line in input_rules %}
+        {{ line }}
+{% endfor %}
+    }
+
+    chain forward {
+        type filter hook forward priority 0; policy drop;
+
+        ct state established,related accept
+        ct state invalid drop
+
+{% if mode == "gateway" %}
+        iifname "{{ lan_iface }}" oifname "{{ wan_iface }}" ct state new accept comment "lan a wan"
+{% endif %}
+{% if vpn_enabled %}
+        iifname "{{ wg_iface }}" oifname "{{ lan_iface }}" ct state new accept comment "vpn a lan"
+        iifname "{{ wg_iface }}" oifname "{{ wan_iface }}" ct state new accept comment "vpn a wan"
+{% endif %}
+{% for line in portforward_accept_rules %}
+        {{ line }}
+{% endfor %}
+{% for line in forward_rules %}
+        {{ line }}
+{% endfor %}
+    }
+
+    chain output {
+        type filter hook output priority 0; policy accept;
+    }
+
+{% if mode == "gateway" %}
+    chain prerouting {
+        type nat hook prerouting priority -100;
+{% for line in portforward_dnat_rules %}
+        {{ line }}
+{% endfor %}
+    }
+
+    chain postrouting {
+        type nat hook postrouting priority 100;
+        oifname "{{ wan_iface }}" masquerade
+    }
+{% endif %}
+}
